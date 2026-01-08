@@ -1,0 +1,258 @@
+import React, { useState, useCallback } from 'react';
+import { MarketingKickstart, ProductPlan } from '../types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/Card';
+import { Button } from './ui/Button';
+import { regenerateLaunchEmail } from '../services/geminiService';
+import { trackPhaseCompletion } from '../src/lib/blink';
+
+const ClipboardIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
+
+const ReloadIcon: React.FC<{ className?: string, isSpinning?: boolean }> = ({ className, isSpinning }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${className} ${isSpinning ? 'animate-spin' : ''}`}>
+    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+    <path d="M21 3v5h-5"/>
+    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+    <path d="M3 21v-5h5"/>
+  </svg>
+);
+
+const TargetingIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
+const UsersIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+const TagIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>;
+const KeyIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>;
+
+
+const useCopyToClipboard = (): [(text: string, id: string) => void, string | null] => {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copy = useCallback((text: string, id: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  }, []);
+  return [copy, copiedId];
+};
+
+interface MarketingKickstartCardProps {
+  marketingPlan: MarketingKickstart;
+  productPlan: ProductPlan;
+  brandVoice: string;
+  onUpdate: (updatedPlan: MarketingKickstart) => void;
+}
+
+const MarketingKickstartCard: React.FC<MarketingKickstartCardProps> = ({ marketingPlan, productPlan, brandVoice, onUpdate }) => {
+  const [copy, copiedId] = useCopyToClipboard();
+  const [isRegeneratingEmail, setIsRegeneratingEmail] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [selectedSocialVariations, setSelectedSocialVariations] = useState<Record<number, number>>({});
+  const [selectedAdVariations, setSelectedAdVariations] = useState<Record<number, number>>({});
+  
+  const { socialMediaPosts, adCopy, launchEmail } = marketingPlan;
+
+  const handleRegenerateEmail = async () => {
+    setIsRegeneratingEmail(true);
+    setEmailError(null);
+    try {
+        const newEmail = await regenerateLaunchEmail(productPlan, brandVoice);
+        onUpdate({ ...marketingPlan, launchEmail: newEmail });
+        trackPhaseCompletion('launch_email_regenerated', { productTitle: productPlan.productTitle });
+    } catch (e) {
+        console.error(e);
+        setEmailError('Failed to regenerate launch email. Please try again.');
+    } finally {
+        setIsRegeneratingEmail(false);
+    }
+  };
+
+
+  return (
+    <Card className="w-full animate-fade-in text-left">
+      <CardHeader>
+        <CardTitle className="text-2xl md:text-3xl">Marketing Kickstart</CardTitle>
+        <CardDescription>AI-generated assets with multiple variations to get you started.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-8">
+        {/* Social Media Section */}
+        <section>
+          <h3 className="text-xl font-semibold mb-4 text-slate-800 dark:text-slate-200">Social Media Posts</h3>
+          <div className="space-y-6">
+            {socialMediaPosts.map((post, index) => {
+              const currentVariationIndex = selectedSocialVariations[index] || 0;
+              const currentText = post.postTextVariations[currentVariationIndex] || post.postTextVariations[0];
+              return (
+              <div key={index} className="p-4 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
+                <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white">{post.platform} Post</h4>
+                  <div className="flex items-center gap-4">
+                     {post.postTextVariations && post.postTextVariations.length > 1 && (
+                        <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-700 rounded-lg">
+                            {post.postTextVariations.map((_, vIndex) => (
+                                <button 
+                                    key={vIndex}
+                                    onClick={() => setSelectedSocialVariations(prev => ({ ...prev, [index]: vIndex }))}
+                                    className={`px-3 py-1 text-xs rounded-md font-semibold transition-colors ${currentVariationIndex === vIndex ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-50' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50'}`}
+                                >
+                                    Variation {vIndex + 1}
+                                </button>
+                            ))}
+                        </div>
+                      )}
+                    <button
+                        onClick={() => copy(currentText, `post-${index}`)}
+                        className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                    >
+                        {copiedId === `post-${index}` ? <CheckIcon /> : <ClipboardIcon />}
+                        {copiedId === `post-${index}` ? 'Copied!' : 'Copy Text'}
+                    </button>
+                  </div>
+                </div>
+                <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-300 mb-3">{currentText}</p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {post.hashtags.map(tag => (
+                    <span key={tag} className="text-sm text-blue-600 dark:text-blue-400">#{tag}</span>
+                  ))}
+                </div>
+                <p className="text-sm text-slate-500 dark:text-slate-400"><span className="font-semibold">Visual Idea:</span> {post.visualPrompt}</p>
+              </div>
+            )})}
+          </div>
+        </section>
+
+        {/* Ad Copy Section */}
+        <section>
+          <h3 className="text-xl font-semibold mb-4 text-slate-800 dark:text-slate-200">Ad Copy</h3>
+          <div className="space-y-6">
+            {adCopy.map((ad, index) => {
+              if (!ad.variations || ad.variations.length === 0) return null;
+              const currentAdVariationIndex = selectedAdVariations[index] || 0;
+              const currentVariation = ad.variations[currentAdVariationIndex];
+
+              return (
+              <div key={index} className="p-4 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
+                <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                    <h4 className="font-bold text-slate-900 dark:text-white">{ad.platform}</h4>
+                     {ad.variations.length > 1 && (
+                        <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-700 rounded-lg">
+                            {ad.variations.map((_, vIndex) => (
+                                <button 
+                                    key={vIndex}
+                                    onClick={() => setSelectedAdVariations(prev => ({...prev, [index]: vIndex}))}
+                                    className={`px-3 py-1 text-xs rounded-md font-semibold transition-colors ${currentAdVariationIndex === vIndex ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-50' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50'}`}
+                                >
+                                    Variation {vIndex + 1}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div>
+                  <h5 className="font-semibold mb-2 text-slate-800 dark:text-slate-200">Headlines:</h5>
+                  <ul className="list-disc list-inside space-y-1">
+                    {currentVariation.headlines.map((headline, hIndex) => (
+                      <li key={hIndex} className="text-slate-700 dark:text-slate-300">{headline}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="mt-4">
+                  <h5 className="font-semibold mb-2 text-slate-800 dark:text-slate-200">Descriptions:</h5>
+                  <ul className="list-disc list-inside space-y-1">
+                    {currentVariation.descriptions.map((desc, dIndex) => (
+                      <li key={dIndex} className="text-slate-700 dark:text-slate-300">{desc}</li>
+                    ))}
+                  </ul>
+                </div>
+                {ad.audienceTargeting && (
+                    <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <h5 className="font-semibold mb-3 text-slate-800 dark:text-slate-200 flex items-center gap-2"><TargetingIcon /> Audience Targeting</h5>
+                        <div className="space-y-2 text-sm pl-2">
+                            <div className="flex items-start gap-2">
+                                <UsersIcon className="mt-1 flex-shrink-0 text-slate-500"/>
+                                <div>
+                                    <strong className="text-slate-700 dark:text-slate-300">Demographics:</strong>
+                                    <p className="text-slate-600 dark:text-slate-400">{ad.audienceTargeting.demographics.join(', ')}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <TagIcon className="mt-1 flex-shrink-0 text-slate-500"/>
+                                <div>
+                                    <strong className="text-slate-700 dark:text-slate-300">Interests:</strong>
+                                    <p className="text-slate-600 dark:text-slate-400">{ad.audienceTargeting.interests.join(', ')}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <KeyIcon className="mt-1 flex-shrink-0 text-slate-500"/>
+                                <div>
+                                    <strong className="text-slate-700 dark:text-slate-300">Keywords:</strong>
+                                    <p className="text-slate-600 dark:text-slate-400">{ad.audienceTargeting.keywords.join(', ')}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+              </div>
+            )})}
+          </div>
+        </section>
+
+        {/* Launch Email Section */}
+        <section>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200">Launch Email</h3>
+                <Button variant="outline" size="sm" onClick={handleRegenerateEmail} disabled={isRegeneratingEmail}>
+                    <ReloadIcon isSpinning={isRegeneratingEmail} className="mr-2" />
+                    {isRegeneratingEmail ? 'Regenerating...' : 'Regenerate Email'}
+                </Button>
+            </div>
+            
+            {/* Error Message */}
+            {emailError && (
+                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-800 dark:text-red-200">{emailError}</p>
+                </div>
+            )}
+          <div className="p-4 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
+            <div className="flex justify-between items-start mb-2">
+                <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white">Email Subject</h4>
+                    <p className="text-slate-700 dark:text-slate-300 mt-1">{launchEmail.subject}</p>
+                </div>
+                 <button
+                    onClick={() => copy(launchEmail.subject, 'email-subject')}
+                    className="flex-shrink-0 flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                  >
+                    {copiedId === 'email-subject' ? <CheckIcon /> : <ClipboardIcon />}
+                    {copiedId === 'email-subject' ? 'Copied!' : 'Copy Subject'}
+                  </button>
+            </div>
+             <div className="w-full h-px bg-slate-200 dark:bg-slate-700 my-4"></div>
+            <div className="flex justify-between items-start mb-2">
+                <h4 className="font-bold text-slate-900 dark:text-white">Email Body</h4>
+                 <button
+                    onClick={() => copy(launchEmail.body, 'email-body')}
+                    className="flex-shrink-0 flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                  >
+                    {copiedId === 'email-body' ? <CheckIcon /> : <ClipboardIcon />}
+                    {copiedId === 'email-body' ? 'Copied!' : 'Copy Body'}
+                  </button>
+            </div>
+            <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-300">{launchEmail.body}</p>
+          </div>
+        </section>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default MarketingKickstartCard;
