@@ -93,45 +93,24 @@ const productPlanSchema = {
     },
 };
 
+// Flattened SMART goals schema to avoid depth issues
 const smartGoalsSchema = {
     type: 'object' as const,
     properties: {
-        specific: { 
-            type: 'object', 
-            properties: { 
-                title: { type: 'string' }, 
-                description: { type: 'string' } 
-            } 
-        },
-        measurable: { 
-            type: 'object', 
-            properties: { 
-                title: { type: 'string' }, 
-                description: { type: 'string' } 
-            } 
-        },
-        achievable: { 
-            type: 'object', 
-            properties: { 
-                title: { type: 'string' }, 
-                description: { type: 'string' } 
-            } 
-        },
-        relevant: { 
-            type: 'object', 
-            properties: { 
-                title: { type: 'string' }, 
-                description: { type: 'string' } 
-            } 
-        },
-        timeBound: { 
-            type: 'object', 
-            properties: { 
-                title: { type: 'string' }, 
-                description: { type: 'string' } 
-            } 
-        },
+        specificTitle: { type: 'string' },
+        specificDescription: { type: 'string' },
+        measurableTitle: { type: 'string' },
+        measurableDescription: { type: 'string' },
+        achievableTitle: { type: 'string' },
+        achievableDescription: { type: 'string' },
+        relevantTitle: { type: 'string' },
+        relevantDescription: { type: 'string' },
+        timeBoundTitle: { type: 'string' },
+        timeBoundDescription: { type: 'string' },
     },
+    required: ['specificTitle', 'specificDescription', 'measurableTitle', 'measurableDescription', 
+               'achievableTitle', 'achievableDescription', 'relevantTitle', 'relevantDescription',
+               'timeBoundTitle', 'timeBoundDescription']
 };
 
 
@@ -160,18 +139,42 @@ export async function generateProductPlan(productIdea: string, brandVoice: strin
     return parsed;
 }
 
+// Interface for the flattened schema response
+interface FlatSmartGoalsResponse {
+    specificTitle: string;
+    specificDescription: string;
+    measurableTitle: string;
+    measurableDescription: string;
+    achievableTitle: string;
+    achievableDescription: string;
+    relevantTitle: string;
+    relevantDescription: string;
+    timeBoundTitle: string;
+    timeBoundDescription: string;
+}
+
 export async function generateSmartGoals(productIdea: string, brandVoice: string): Promise<SMARTGoals> {
-    const systemInstruction = `You are a business strategist creating S.M.A.R.T. goals for a new e-commerce venture. The brand voice is "${brandVoice}". Your response must be a JSON object and nothing else.`;
-    const prompt = `Generate S.M.A.R.T. goals for a new e-commerce business selling "${productIdea}". The goals should cover the first 6 months of operation. Focus on launch, initial sales, and brand awareness.`;
+    const systemInstruction = `You are a business strategist creating S.M.A.R.T. goals for a new e-commerce venture. The brand voice is "${brandVoice}". Generate goals with a clear title and detailed description for each category.`;
+    const prompt = `Generate S.M.A.R.T. goals for a new e-commerce business selling "${productIdea}". The goals should cover the first 6 months of operation. Focus on launch, initial sales, and brand awareness. Provide a concise title and detailed description for each: Specific, Measurable, Achievable, Relevant, and Time-Bound.`;
     
     const { object } = await blink.ai.generateObject({
         prompt: `${systemInstruction}\n\n${prompt}`,
         schema: smartGoalsSchema
     });
     
-    const parsed = object as SMARTGoals;
-    if (!parsed) throw new Error("Failed to generate SMART goals");
-    return parsed;
+    const flat = object as FlatSmartGoalsResponse;
+    if (!flat || !flat.specificTitle) throw new Error("Failed to generate SMART goals");
+    
+    // Transform flat response to nested SMARTGoals interface
+    const result: SMARTGoals = {
+        specific: { title: flat.specificTitle, description: flat.specificDescription },
+        measurable: { title: flat.measurableTitle, description: flat.measurableDescription },
+        achievable: { title: flat.achievableTitle, description: flat.achievableDescription },
+        relevant: { title: flat.relevantTitle, description: flat.relevantDescription },
+        timeBound: { title: flat.timeBoundTitle, description: flat.timeBoundDescription }
+    };
+    
+    return result;
 }
 
 
