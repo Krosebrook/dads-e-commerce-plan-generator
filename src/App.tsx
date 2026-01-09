@@ -99,6 +99,11 @@ const App: React.FC = () => {
 
     // Auth state listener
     useEffect(() => {
+        if (!supabase) {
+            setAuthLoading(false);
+            return;
+        }
+        
         supabase.auth.getSession().then(({ data: { session } }) => {
             setUser(session?.user ?? null);
             setAuthLoading(false);
@@ -125,7 +130,7 @@ const App: React.FC = () => {
             }
 
             // Load ventures from database if user is authenticated
-            if (user?.id) {
+            if (user?.id && supabase) {
                 try {
                     const { data, error } = await supabase
                         .from('ventures')
@@ -179,13 +184,13 @@ const App: React.FC = () => {
             const ventures: SavedVenture[] = JSON.parse(localData);
             
             // Only migrate if ventures exist and haven't been migrated yet (simplified check)
-            if (ventures.length > 0) {
-                console.log('Migrating', ventures.length, 'ventures from localStorage to database...');
-                
-                for (const venture of ventures) {
-                    const alreadyExists = existingVentures.some(v => v.name === venture.name);
-                    if (!alreadyExists) {
-                        await supabase.from('ventures').insert({
+            if (ventures.length > 0 && supabase) {
+            console.log('Migrating', ventures.length, 'ventures from localStorage to database...');
+            
+            for (const venture of ventures) {
+            const alreadyExists = existingVentures.some(v => v.name === venture.name);
+            if (!alreadyExists) {
+                await supabase.from('ventures').insert({
                             user_id: userId,
                             name: venture.name,
                             data: venture.data,
@@ -367,7 +372,7 @@ const App: React.FC = () => {
         const now = new Date().toISOString();
 
         // Save to database if user is authenticated
-        if (user?.id) {
+        if (user?.id && supabase) {
             try {
                 // Determine if it's an existing venture (UUID)
                 const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ventureId);
@@ -597,7 +602,9 @@ const App: React.FC = () => {
     };
 
     const handleSignOut = async () => {
-        await supabase.auth.signOut();
+        if (supabase) {
+            await supabase.auth.signOut();
+        }
         resetState();
     };
 

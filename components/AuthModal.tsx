@@ -26,6 +26,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     setMessage('');
     setIsLoading(true);
 
+    if (!supabase) {
+      setError('Authentication is not available. Please try again later.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       if (mode === 'signin') {
         const { error } = await supabase.auth.signInWithPassword({
@@ -63,6 +69,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const handleSocialAuth = async (provider: 'google' | 'github') => {
     setError('');
     setIsLoading(true);
+
+    if (!supabase) {
+      setError('Authentication is not available. Please try again later.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
