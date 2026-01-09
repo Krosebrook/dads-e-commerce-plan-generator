@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
-import { X, Mail, Lock, User, Chrome } from 'lucide-react';
-import { blink } from '../src/lib/blink';
+import { X, Mail, Lock, User, Chrome, Github } from 'lucide-react';
+import { supabase } from '../src/lib/supabase';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -28,35 +28,33 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
     try {
       if (mode === 'signin') {
-        await blink.auth.signInWithEmail(email, password);
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
         onClose();
       } else if (mode === 'signup') {
-        await blink.auth.signUp({ 
-          email, 
+        const { error } = await supabase.auth.signUp({
+          email,
           password,
-          displayName: displayName || undefined
+          options: {
+            data: {
+              display_name: displayName || undefined,
+            },
+          },
         });
-        await blink.auth.sendEmailVerification();
-        setMessage('Account created! Check your email to verify.');
+        if (error) throw error;
+        setMessage('Account created! Please check your email for a verification link.');
       } else if (mode === 'reset') {
-        await blink.auth.sendPasswordResetEmail(email);
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
         setMessage('Password reset email sent! Check your inbox.');
       }
     } catch (err: any) {
-      const errorMessage = err?.message || 'Authentication failed. Please try again.';
-      
-      if (errorMessage.includes('email') && errorMessage.includes('verif')) {
-        setError('Please verify your email first. We sent you a verification link.');
-        try {
-          await blink.auth.sendEmailVerification();
-        } catch {}
-      } else if (errorMessage.includes('credential') || errorMessage.includes('password')) {
-        setError('Invalid email or password. Please try again.');
-      } else if (errorMessage.includes('rate') || errorMessage.includes('many')) {
-        setError('Too many attempts. Please try again later.');
-      } else {
-        setError(errorMessage);
-      }
+      setError(err?.message || 'Authentication failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -66,12 +64,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     setError('');
     setIsLoading(true);
     try {
-      if (provider === 'google') {
-        await blink.auth.signInWithGoogle();
-      } else if (provider === 'github') {
-        await blink.auth.signInWithGitHub();
-      }
-      onClose();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) throw error;
     } catch (err) {
       setError('Social authentication failed. Please try again.');
     } finally {

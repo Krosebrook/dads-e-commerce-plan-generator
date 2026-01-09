@@ -11,7 +11,9 @@ import ProductScout from '../components/ProductScout';
 import AuthModal from '../components/AuthModal';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { generateProductPlan, generateSmartGoals } from '../services/geminiService';
-import { blink, trackPhaseCompletion } from './lib/blink';
+import { trackPhaseCompletion } from './lib/blink';
+import { supabase } from './lib/supabase';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 import {
     ProductPlan,
@@ -52,7 +54,7 @@ const App: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [inputError, setInputError] = useState<string | null>(null);
     const [theme, setTheme] = useState<Theme>('light');
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<SupabaseUser | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
 
     // State for all data generated throughout the steps
@@ -92,16 +94,22 @@ const App: React.FC = () => {
     const [savedVentures, setSavedVentures] = useState<SavedVenture[]>([]);
     const [showVentures, setShowVentures] = useState(false);
     const [showScout, setShowScout] = useState(false);
-    const [showAuth, setShowAuth] = useState(false);
+    const [showAuthModal, setShowAuthModal] = useState(false);
     const [showAnalytics, setShowAnalytics] = useState(false);
 
     // Auth state listener
     useEffect(() => {
-        const unsubscribe = blink.auth.onAuthStateChanged((state) => {
-            setUser(state.user);
-            setAuthLoading(state.isLoading);
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setUser(session?.user ?? null);
+            setAuthLoading(false);
         });
-        return unsubscribe;
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null);
+            setAuthLoading(false);
+        });
+
+        return () => subscription.unsubscribe();
     }, []);
 
     // Load ventures and theme
@@ -119,22 +127,27 @@ const App: React.FC = () => {
             // Load ventures from database if user is authenticated
             if (user?.id) {
                 try {
-                    const dbVentures = await blink.db.ventures.list({
-                        where: { userId: user.id },
-                        orderBy: { lastModified: 'desc' }
-                    });
-                    
-                    const ventures: SavedVenture[] = dbVentures.map((v: any) => ({
-                        id: v.id,
-                        name: v.name,
-                        lastModified: v.lastModified,
-                        data: JSON.parse(v.data)
-                    }));
-                    
-                    setSavedVentures(ventures);
+                    const { data, error } = await supabase
+                        .from('ventures')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('last_modified', { ascending: false });
 
-                    // Migrate localStorage data to DB (one-time)
-                    await migrateLocalStorageData(user.id);
+                    if (error) throw error;
+                    
+                    if (data) {
+                        const ventures: SavedVenture[] = data.map((v: any) => ({
+                            id: v.id,
+                            name: v.name,
+                            lastModified: v.last_modified,
+                            data: v.data
+                        }));
+                        
+                        setSavedVentures(ventures);
+
+                        // Migrate localStorage data to DB (one-time)
+                        await migrateLocalStorageData(user.id, ventures);
+                    }
                 } catch (err) {
                     console.error('Failed to load ventures from database:', err);
                     // Fallback to localStorage
@@ -158,36 +171,48 @@ const App: React.FC = () => {
     }, [user, authLoading]);
 
     // Migration function to move localStorage data to DB
-    const migrateLocalStorageData = async (userId: string) => {
+    const migrateLocalStorageData = async (userId: string, existingVentures: SavedVenture[]) => {
         const localData = localStorage.getItem('dad-ecommerce-ventures');
         if (!localData) return;
 
         try {
             const ventures: SavedVenture[] = JSON.parse(localData);
             
-            // Check if any ventures exist in DB
-            const existingVentures = await blink.db.ventures.list({
-                where: { userId },
-                limit: 1
-            });
-
-            // Only migrate if DB is empty (first-time migration)
-            if (existingVentures.length === 0 && ventures.length > 0) {
+            // Only migrate if ventures exist and haven't been migrated yet (simplified check)
+            if (ventures.length > 0) {
                 console.log('Migrating', ventures.length, 'ventures from localStorage to database...');
                 
                 for (const venture of ventures) {
-                    await blink.db.ventures.create({
-                        id: venture.id,
-                        userId: userId,
-                        name: venture.name,
-                        lastModified: venture.lastModified,
-                        data: JSON.stringify(venture.data)
-                    });
+                    const alreadyExists = existingVentures.some(v => v.name === venture.name);
+                    if (!alreadyExists) {
+                        await supabase.from('ventures').insert({
+                            user_id: userId,
+                            name: venture.name,
+                            data: venture.data,
+                            last_modified: venture.lastModified
+                        });
+                    }
                 }
 
                 // Clear localStorage after successful migration
                 localStorage.removeItem('dad-ecommerce-ventures');
                 console.log('Migration complete!');
+                
+                // Refresh list
+                const { data } = await supabase
+                    .from('ventures')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('last_modified', { ascending: false });
+                
+                if (data) {
+                    setSavedVentures(data.map((v: any) => ({
+                        id: v.id,
+                        name: v.name,
+                        lastModified: v.last_modified,
+                        data: v.data
+                    })));
+                }
             }
         } catch (err) {
             console.error('Migration failed:', err);
@@ -338,68 +363,73 @@ const App: React.FC = () => {
             pressRelease: pressRelease ?? undefined
         };
 
-        const newVenture: SavedVenture = {
-            id: ventureId,
-            name: ventureName || plan.productTitle,
-            lastModified: new Date().toISOString(),
-            data: currentAppData
-        };
-
-        const updatedVentures = savedVentures.filter(v => v.id !== ventureId);
-        setSavedVentures([...updatedVentures, newVenture]);
-
-        // Check if this is a new venture or an update
-        const isNewVenture = !savedVentures.find(v => v.id === ventureId);
+        const currentVentureName = ventureName || plan.productTitle;
+        const now = new Date().toISOString();
 
         // Save to database if user is authenticated
         if (user?.id) {
             try {
-                // Check if venture already exists
-                const existing = await blink.db.ventures.list({
-                    where: { id: ventureId }
-                });
+                // Determine if it's an existing venture (UUID)
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ventureId);
 
-                if (existing.length > 0) {
-                    // Update existing venture
-                    await blink.db.ventures.update(ventureId, {
-                        name: newVenture.name,
-                        lastModified: newVenture.lastModified,
-                        data: JSON.stringify(currentAppData)
-                    });
-                } else {
-                    // Create new venture
-                    await blink.db.ventures.create({
-                        id: ventureId,
-                        userId: user.id,
-                        name: newVenture.name,
-                        lastModified: newVenture.lastModified,
-                        data: JSON.stringify(currentAppData)
-                    });
+                const { data, error } = await supabase
+                    .from('ventures')
+                    .upsert({
+                        ...(isUuid ? { id: ventureId } : {}),
+                        user_id: user.id,
+                        name: currentVentureName,
+                        data: currentAppData,
+                        last_modified: now
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                
+                if (data) {
+                    setVentureId(data.id);
+                    // Refresh the list to show the new/updated venture
+                    const { data: listData } = await supabase
+                        .from('ventures')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('last_modified', { ascending: false });
+                    
+                    if (listData) {
+                        setSavedVentures(listData.map((v: any) => ({
+                            id: v.id,
+                            name: v.name,
+                            lastModified: v.last_modified,
+                            data: v.data
+                        })));
+                    }
                 }
-                console.log('Venture saved to database successfully');
             } catch (err) {
                 console.error('Failed to save venture to database:', err);
-                // Fallback to localStorage
-                localStorage.setItem('dad-ecommerce-ventures', JSON.stringify([...updatedVentures, newVenture]));
             }
         } else {
             // Not authenticated - use localStorage
-            localStorage.setItem('dad-ecommerce-ventures', JSON.stringify([...updatedVentures, newVenture]));
+            const newVenture: SavedVenture = {
+                id: ventureId,
+                name: currentVentureName,
+                lastModified: now,
+                data: currentAppData
+            };
+            const updatedVentures = savedVentures.filter(v => v.id !== ventureId);
+            const finalVentures = [...updatedVentures, newVenture];
+            setSavedVentures(finalVentures);
+            localStorage.setItem('dad-ecommerce-ventures', JSON.stringify(finalVentures));
         }
 
-        // Track analytics event
-        trackPhaseCompletion(isNewVenture ? 'venture_created' : 'venture_updated', {
-            venture_name: newVenture.name,
-            has_marketing: !!marketingPlan,
-            has_financials: !!financials,
-            has_persona: !!customerPersona
+        trackPhaseCompletion(!savedVentures.find(v => v.id === ventureId) ? 'venture_created' : 'venture_updated', {
+            venture_name: currentVentureName
         });
 
         setIsPlanSaved(true);
     };
 
-    const loadVenture = (ventureId: string) => {
-        const ventureToLoad = savedVentures.find(v => v.id === ventureId);
+    const loadVenture = (ventureIdToLoad: string) => {
+        const ventureToLoad = savedVentures.find(v => v.id === ventureIdToLoad);
         if (ventureToLoad) {
             // Track analytics event
             trackPhaseCompletion('venture_loaded', {
@@ -509,49 +539,53 @@ const App: React.FC = () => {
         }
     };
     
-    const renameVenture = async (ventureId: string, newName: string) => {
-        const updatedVentures = savedVentures.map(v => v.id === ventureId ? { ...v, name: newName, lastModified: new Date().toISOString() } : v);
-        setSavedVentures(updatedVentures);
-
-        // Update in database if user is authenticated
+    const renameVenture = async (vId: string, newName: string) => {
+        const now = new Date().toISOString();
         if (user?.id) {
             try {
-                await blink.db.ventures.update(ventureId, {
-                    name: newName,
-                    lastModified: new Date().toISOString()
-                });
+                const { error } = await supabase
+                    .from('ventures')
+                    .update({ name: newName, last_modified: now })
+                    .eq('id', vId);
+
+                if (error) throw error;
+                
+                setSavedVentures(prev => prev.map(v => v.id === vId ? { ...v, name: newName, lastModified: now } : v));
             } catch (err) {
                 console.error('Failed to rename venture in database:', err);
-                // Fallback to localStorage
-                localStorage.setItem('dad-ecommerce-ventures', JSON.stringify(updatedVentures));
             }
         } else {
+            const updatedVentures = savedVentures.map(v => v.id === vId ? { ...v, name: newName, lastModified: now } : v);
+            setSavedVentures(updatedVentures);
             localStorage.setItem('dad-ecommerce-ventures', JSON.stringify(updatedVentures));
         }
-
-        if(ventureId === ventureId) {
+        
+        if (vId === ventureId) {
             setVentureName(newName);
         }
     };
 
-    const deleteVenture = async (ventureId: string) => {
-        const updatedVentures = savedVentures.filter(v => v.id !== ventureId);
-        setSavedVentures(updatedVentures);
-
-        // Delete from database if user is authenticated
+    const deleteVenture = async (vId: string) => {
         if (user?.id) {
             try {
-                await blink.db.ventures.delete(ventureId);
+                const { error } = await supabase
+                    .from('ventures')
+                    .delete()
+                    .eq('id', vId);
+
+                if (error) throw error;
+                
+                setSavedVentures(prev => prev.filter(v => v.id !== vId));
             } catch (err) {
                 console.error('Failed to delete venture from database:', err);
-                // Fallback to localStorage
-                localStorage.setItem('dad-ecommerce-ventures', JSON.stringify(updatedVentures));
             }
         } else {
+            const updatedVentures = savedVentures.filter(v => v.id !== vId);
+            setSavedVentures(updatedVentures);
             localStorage.setItem('dad-ecommerce-ventures', JSON.stringify(updatedVentures));
         }
 
-        if (ventureId === ventureId) {
+        if (vId === ventureId) {
             resetState();
         }
     };
@@ -563,12 +597,8 @@ const App: React.FC = () => {
     };
 
     const handleSignOut = async () => {
-        try {
-            await blink.auth.logout();
-            resetState();
-        } catch (err) {
-            console.error('Sign out failed:', err);
-        }
+        await supabase.auth.signOut();
+        resetState();
     };
 
     const steps = ['Idea & Goals', 'Blueprint', 'Market Analysis', 'Launchpad'];
@@ -580,9 +610,9 @@ const App: React.FC = () => {
                 hasVentures={savedVentures.length > 0}
                 theme={theme}
                 onToggleTheme={toggleTheme}
-                onShowAuth={() => setShowAuth(true)}
+                onShowAuth={() => setShowAuthModal(true)}
                 onShowAnalytics={() => setShowAnalytics(true)}
-                user={user}
+                user={user ? { email: user.email, displayName: user.user_metadata?.display_name } : null}
                 onSignOut={handleSignOut}
             />
             <main className="flex-grow container mx-auto px-4 py-8 md:py-12 flex flex-col items-center">
@@ -704,9 +734,9 @@ const App: React.FC = () => {
                     onSelectIdea={handleSelectScoutIdea}
                 />
             )}
-            {showAuth && (
+            {showAuthModal && (
                 <AuthModal
-                    onClose={() => setShowAuth(false)}
+                    onClose={() => setShowAuthModal(false)}
                 />
             )}
             {showAnalytics && (
