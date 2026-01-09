@@ -21,17 +21,24 @@ const getScoreColor = (score: number): string => {
 };
 
 const ProductScoutCard: React.FC<ProductScoutCardProps> = ({ result, onSelect }) => {
+  // Defensive defaults for potentially undefined nested properties
+  const potentialSuppliers = result.potentialSuppliers || [];
+  const amazonStrategy = result.amazonSellingStrategy || {};
+  const keyServices = amazonStrategy.keyServices || [];
+  const complianceChecklist = amazonStrategy.complianceChecklist || [];
+  const shippingRecommendation = amazonStrategy.shippingRecommendation || 'Not specified';
+
   return (
     <Card className="w-full text-left animate-fade-in">
       <CardHeader>
         <div className="flex justify-between items-start gap-4">
             <div>
-                <CardTitle className="text-xl">{result.productName}</CardTitle>
-                <CardDescription>{result.description}</CardDescription>
+                <CardTitle className="text-xl">{result.productName || 'Unknown Product'}</CardTitle>
+                <CardDescription>{result.description || 'No description available'}</CardDescription>
             </div>
             <div className="flex-shrink-0 text-center">
-                 <div className={`text-4xl font-bold ${getScoreColor(result.trendScore)}`}>
-                    {result.trendScore}<span className="text-xl text-slate-400">/10</span>
+                 <div className={`text-4xl font-bold ${getScoreColor(result.trendScore || 0)}`}>
+                    {result.trendScore || 0}<span className="text-xl text-slate-400">/10</span>
                 </div>
                 <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Trend Score</div>
             </div>
@@ -40,38 +47,44 @@ const ProductScoutCard: React.FC<ProductScoutCardProps> = ({ result, onSelect })
       <CardContent className="space-y-4">
         <div className="p-3 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
             <h4 className="font-semibold text-sm mb-1 flex items-center gap-2"><TrendIcon/> Sales Forecast</h4>
-            <p className="text-sm text-slate-600 dark:text-slate-300">{result.salesForecast}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">{result.salesForecast || 'No forecast available'}</p>
         </div>
-        <div className="p-3 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
-            <h4 className="font-semibold text-sm mb-2 flex items-center gap-2"><SupplierIcon/> Potential Suppliers</h4>
-            <ul className="list-disc list-inside space-y-1 pl-2 text-sm">
-                {result.potentialSuppliers.map((supplier, index) => (
-                    <li key={index} className="text-slate-600 dark:text-slate-300">
-                        <span className="font-medium text-slate-800 dark:text-slate-200">{supplier.platform}:</span> {supplier.notes}
-                    </li>
-                ))}
-            </ul>
-        </div>
+        {potentialSuppliers.length > 0 && (
+          <div className="p-3 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
+              <h4 className="font-semibold text-sm mb-2 flex items-center gap-2"><SupplierIcon/> Potential Suppliers</h4>
+              <ul className="list-disc list-inside space-y-1 pl-2 text-sm">
+                  {potentialSuppliers.map((supplier, index) => (
+                      <li key={index} className="text-slate-600 dark:text-slate-300">
+                          <span className="font-medium text-slate-800 dark:text-slate-200">{supplier.platform || 'Unknown'}:</span> {supplier.notes || 'No notes'}
+                      </li>
+                  ))}
+              </ul>
+          </div>
+        )}
         <div className="p-3 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
             <h4 className="font-semibold text-sm mb-2 flex items-center gap-2"><AmazonIcon/> Amazon Selling Strategy</h4>
              <div className="space-y-2 text-sm">
-                <p><strong className="text-slate-800 dark:text-slate-200">Key Services:</strong> <span className="text-slate-600 dark:text-slate-300">{result.amazonSellingStrategy.keyServices.join(', ')}</span></p>
-                <p><strong className="text-slate-800 dark:text-slate-200">Shipping:</strong> <span className="text-slate-600 dark:text-slate-300">{result.amazonSellingStrategy.shippingRecommendation}</span></p>
-                <div>
-                     <strong className="text-slate-800 dark:text-slate-200 block mb-1">Compliance Checklist:</strong>
-                     <ul className="space-y-1">
-                        {result.amazonSellingStrategy.complianceChecklist.map((item, index) => (
-                            <li key={index} className="flex items-start gap-2 text-slate-600 dark:text-slate-300">
-                                <CheckCircleIcon className="mt-1 flex-shrink-0 text-green-500" />
-                                <span>{item}</span>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+                {keyServices.length > 0 && (
+                  <p><strong className="text-slate-800 dark:text-slate-200">Key Services:</strong> <span className="text-slate-600 dark:text-slate-300">{keyServices.join(', ')}</span></p>
+                )}
+                <p><strong className="text-slate-800 dark:text-slate-200">Shipping:</strong> <span className="text-slate-600 dark:text-slate-300">{shippingRecommendation}</span></p>
+                {complianceChecklist.length > 0 && (
+                  <div>
+                       <strong className="text-slate-800 dark:text-slate-200 block mb-1">Compliance Checklist:</strong>
+                       <ul className="space-y-1">
+                          {complianceChecklist.map((item, index) => (
+                              <li key={index} className="flex items-start gap-2 text-slate-600 dark:text-slate-300">
+                                  <CheckCircleIcon className="mt-1 flex-shrink-0 text-green-500" />
+                                  <span>{item}</span>
+                              </li>
+                          ))}
+                      </ul>
+                  </div>
+                )}
             </div>
         </div>
         <div className="flex justify-end pt-2">
-            <Button onClick={() => onSelect(result.productName)}>Use This Idea</Button>
+            <Button onClick={() => onSelect(result.productName || 'Product')}>Use This Idea</Button>
         </div>
       </CardContent>
     </Card>
