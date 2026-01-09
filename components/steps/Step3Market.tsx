@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CompetitiveAnalysis, SWOTAnalysis, CustomerPersona, ProductPlan } from '../../types';
+import { CompetitiveAnalysis, SWOTAnalysis, CustomerPersona, ProductPlan, UserPersonaId } from '../../types';
 import { generateCompetitiveAnalysis, generateSWOTAnalysis, generateCustomerPersona } from '../../services/geminiService';
 import CompetitiveAnalysisCard from '../CompetitiveAnalysisCard';
 import SWOTAnalysisCard from '../SWOTAnalysisCard';
@@ -11,6 +11,7 @@ interface Step3MarketProps {
     productPlan: ProductPlan;
     productIdea: string;
     brandVoice: string;
+    selectedPersona: UserPersonaId | undefined;
     analysis: CompetitiveAnalysis | null;
     setAnalysis: React.Dispatch<React.SetStateAction<CompetitiveAnalysis | null>>;
     swotAnalysis: SWOTAnalysis | null;
@@ -38,6 +39,7 @@ const Step3Market: React.FC<Step3MarketProps> = ({
     productPlan,
     productIdea,
     brandVoice,
+    selectedPersona,
     analysis,
     setAnalysis,
     swotAnalysis,
@@ -64,9 +66,9 @@ const Step3Market: React.FC<Step3MarketProps> = ({
 
                     // Use Promise.all to fetch concurrently
                     const [analysisResult, swotResult, personaResult] = await Promise.all([
-                        analysis ? Promise.resolve(analysis) : generateCompetitiveAnalysis(productIdea, brandVoice),
-                        swotAnalysis ? Promise.resolve(swotAnalysis) : generateSWOTAnalysis(productIdea, brandVoice),
-                        customerPersona ? Promise.resolve(customerPersona) : generateCustomerPersona(productIdea, targetAudience, brandVoice)
+                        analysis ? Promise.resolve(analysis) : generateCompetitiveAnalysis(productIdea, brandVoice, selectedPersona),
+                        swotAnalysis ? Promise.resolve(swotAnalysis) : generateSWOTAnalysis(productIdea, brandVoice, selectedPersona),
+                        customerPersona ? Promise.resolve(customerPersona) : generateCustomerPersona(productIdea, targetAudience, brandVoice, selectedPersona)
                     ]);
                     setAnalysis(analysisResult);
                     setSwotAnalysis(swotResult);

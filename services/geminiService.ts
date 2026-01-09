@@ -1,6 +1,7 @@
 // Use Blink SDK for AI functionality instead of @google/genai directly
 // This handles authentication and API keys securely on the server side
 import { blink } from '../src/lib/blink';
+import { getPersonaById } from '@/src/lib/personas';
 import { 
     ProductPlan, 
     ProductVariant, 
@@ -28,8 +29,18 @@ import {
     ProductPhotographyPlan,
     ABTestPlan,
     EmailFunnel,
-    PressRelease
+    PressRelease,
+    UserPersonaId
 } from '../types';
+
+// Helper to get persona-specific instructions
+const getPersonaInstructions = (personaId?: UserPersonaId): string => {
+    if (!personaId) return '';
+    const persona = getPersonaById(personaId);
+    if (!persona) return '';
+    return `\n\nThe target user persona is the "${persona.name}". Objective: ${persona.objective}. ${persona.description} Please tailor the output to specifically help this persona achieve their objective.`;
+};
+
 
 // Helper to safely parse JSON from model response
 const parseJson = <T>(jsonString: string | undefined): T | null => {
@@ -114,8 +125,9 @@ const smartGoalsSchema = {
 };
 
 
-export async function generateProductPlan(productIdea: string, brandVoice: string, existingVariants: ProductVariant[]): Promise<ProductPlan> {
-    const systemInstruction = `You are an e-commerce expert creating a detailed product plan. The brand voice is "${brandVoice}". Your entire response must be a single JSON object matching the provided schema, and nothing else.`;
+export async function generateProductPlan(productIdea: string, brandVoice: string, existingVariants: ProductVariant[], personaId?: UserPersonaId): Promise<ProductPlan> {
+    const personaInstructions = getPersonaInstructions(personaId);
+    const systemInstruction = `You are an e-commerce expert creating a detailed product plan. The brand voice is "${brandVoice}".${personaInstructions} Your entire response must be a single JSON object matching the provided schema, and nothing else.`;
     
     let prompt = `Create a comprehensive product plan for: "${productIdea}". Include a compelling product title, slug, a detailed and engaging product description that focuses on the benefits for its target audience, a base price in cents (USD), a base SKU, total stock, at least 3 relevant product variants, marketing tags, a list of primary materials, product dimensions (e.g., "15cm x 10cm x 5cm"), and weight in grams.`;
     if (existingVariants.length > 0) {
@@ -153,8 +165,9 @@ interface FlatSmartGoalsResponse {
     timeBoundDescription: string;
 }
 
-export async function generateSmartGoals(productIdea: string, brandVoice: string): Promise<SMARTGoals> {
-    const systemInstruction = `You are a business strategist creating S.M.A.R.T. goals for a new e-commerce venture. The brand voice is "${brandVoice}". Generate goals with a clear title and detailed description for each category.`;
+export async function generateSmartGoals(productIdea: string, brandVoice: string, personaId?: UserPersonaId): Promise<SMARTGoals> {
+    const personaInstructions = getPersonaInstructions(personaId);
+    const systemInstruction = `You are a business strategist creating S.M.A.R.T. goals for a new e-commerce venture. The brand voice is "${brandVoice}".${personaInstructions} Generate goals with a clear title and detailed description for each category.`;
     const prompt = `Generate S.M.A.R.T. goals for a new e-commerce business selling "${productIdea}". The goals should cover the first 6 months of operation. Focus on launch, initial sales, and brand awareness. Provide a concise title and detailed description for each: Specific, Measurable, Achievable, Relevant, and Time-Bound.`;
     
     const { object } = await blink.ai.generateObject({
@@ -239,8 +252,9 @@ export async function generateLogo(productTitle: string, style: string, color: s
     return data[0].url;
 }
 
-export async function generateBrandIdentity(plan: ProductPlan, brandVoice: string): Promise<BrandIdentityKit> {
-    const systemInstruction = `You are a brand strategist creating a brand identity kit. The brand voice is "${brandVoice}". Your response must be a single JSON object.`;
+export async function generateBrandIdentity(plan: ProductPlan, brandVoice: string, personaId?: UserPersonaId): Promise<BrandIdentityKit> {
+    const personaInstructions = getPersonaInstructions(personaId);
+    const systemInstruction = `You are a brand strategist creating a brand identity kit. The brand voice is "${brandVoice}".${personaInstructions} Your response must be a single JSON object.`;
     const prompt = `Create a brand identity kit for the product: "${plan.productTitle}". Description: "${plan.description}". Generate a color palette (primary, secondary, accent hex codes), typography pairing (heading and body font names from Google Fonts), and a concise mission statement.`;
 
     const { object } = await blink.ai.generateObject({
@@ -273,8 +287,9 @@ export async function generateBrandIdentity(plan: ProductPlan, brandVoice: strin
     return parsed;
 }
 
-export async function generateCompetitiveAnalysis(productIdea: string, brandVoice: string): Promise<CompetitiveAnalysis> {
-    const systemInstruction = `You are a market research analyst with a ${brandVoice} tone. Your response must be a JSON object.`;
+export async function generateCompetitiveAnalysis(productIdea: string, brandVoice: string, personaId?: UserPersonaId): Promise<CompetitiveAnalysis> {
+    const personaInstructions = getPersonaInstructions(personaId);
+    const systemInstruction = `You are a market research analyst with a ${brandVoice} tone.${personaInstructions} Your response must be a JSON object.`;
     const prompt = `Conduct a competitive analysis for a new e-commerce product: "${productIdea}". Provide an opportunity score (1-10), a market summary, details on 3 main competitors (name, price range, strengths, weaknesses), and 3-4 key differentiation strategies.`;
     
     const { text, sources } = await blink.ai.generateText({
@@ -298,8 +313,9 @@ export async function generateCompetitiveAnalysis(productIdea: string, brandVoic
     return parsed;
 }
 
-export async function generateSWOTAnalysis(productIdea: string, brandVoice: string): Promise<SWOTAnalysis> {
-    const systemInstruction = `You are a business consultant with a ${brandVoice} tone. Your response must be a JSON object.`;
+export async function generateSWOTAnalysis(productIdea: string, brandVoice: string, personaId?: UserPersonaId): Promise<SWOTAnalysis> {
+    const personaInstructions = getPersonaInstructions(personaId);
+    const systemInstruction = `You are a business consultant with a ${brandVoice} tone.${personaInstructions} Your response must be a JSON object.`;
     const prompt = `Create a SWOT analysis for a new e-commerce product: "${productIdea}". Identify 3-4 key points for each category: Strengths, Weaknesses, Opportunities, and Threats.`;
     
     const { object } = await blink.ai.generateObject({
@@ -320,8 +336,9 @@ export async function generateSWOTAnalysis(productIdea: string, brandVoice: stri
     return parsed;
 }
 
-export async function generateCustomerPersona(productIdea: string, targetAudience: string, brandVoice: string): Promise<CustomerPersona> {
-    const systemInstruction = `You are a marketing expert with a ${brandVoice} tone, specializing in creating customer personas. Your response must be a JSON object.`;
+export async function generateCustomerPersona(productIdea: string, targetAudience: string, brandVoice: string, personaId?: UserPersonaId): Promise<CustomerPersona> {
+    const personaInstructions = getPersonaInstructions(personaId);
+    const systemInstruction = `You are a marketing expert with a ${brandVoice} tone, specializing in creating customer personas.${personaInstructions} Your response must be a JSON object.`;
     const prompt = `Create a detailed customer persona for the target audience of "${productIdea}". The target audience is described as: "${targetAudience}". Include a name, age, occupation, a direct quote, background story, demographics, motivations, goals, pain points, and a visual prompt for an avatar image.`;
     
     const { object } = await blink.ai.generateObject({
@@ -359,8 +376,9 @@ export async function generatePersonaAvatar(prompt: string): Promise<string> {
     return data[0].url;
 }
 
-export async function generateMarketingPlan(plan: ProductPlan, brandVoice: string, customerPersona: CustomerPersona): Promise<MarketingKickstart> {
-    const systemInstruction = `You are a digital marketing specialist with a ${brandVoice} tone. Your response must be a JSON object.`;
+export async function generateMarketingPlan(plan: ProductPlan, brandVoice: string, customerPersona: CustomerPersona, personaId?: UserPersonaId): Promise<MarketingKickstart> {
+    const personaInstructions = getPersonaInstructions(personaId);
+    const systemInstruction = `You are a digital marketing specialist with a ${brandVoice} tone.${personaInstructions} Your response must be a JSON object.`;
     const prompt = `Create a marketing kickstart plan for "${plan.productTitle}".
 Description: "${plan.description}".
 The target customer persona is:

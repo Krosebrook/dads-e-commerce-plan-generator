@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { trackPhaseCompletion } from '../../src/lib/blink';
+import { getPersonaById } from '@/src/lib/personas';
 // FIX: Correctly import types from the central types file.
-import { ProductPlan, MarketingKickstart, FinancialProjections, FinancialScenario, NextStepItem, ChatMessage, CompetitiveAnalysis, CustomerPersona, SeoStrategy, ShopifyIntegration, SupplierQuote, AdCampaign, InfluencerMarketingPlan, CustomerSupportPlaybook, PackagingExperience, LegalChecklist, SupplierSuggestion, SocialMediaCalendar, ProductPhotographyPlan, ABTestPlan, EmailFunnel, PressRelease } from '../../types';
+import { ProductPlan, MarketingKickstart, FinancialProjections, FinancialScenario, NextStepItem, ChatMessage, CompetitiveAnalysis, CustomerPersona, SeoStrategy, ShopifyIntegration, SupplierQuote, AdCampaign, InfluencerMarketingPlan, CustomerSupportPlaybook, PackagingExperience, LegalChecklist, SupplierSuggestion, SocialMediaCalendar, ProductPhotographyPlan, ABTestPlan, EmailFunnel, PressRelease, UserPersonaId } from '../../types';
 // FIX: Correctly import services from the geminiService file.
 import { generateMarketingPlan, generateFinancialProjections, generateNextSteps, generateStorefrontMockup, generateAdCampaigns, generateInfluencerPlan, generatePackagingExperience, generateLegalChecklist } from '../../services/geminiService';
 
@@ -31,6 +32,7 @@ import { Button } from '../ui/Button';
 interface Step4LaunchpadProps {
     productPlan: ProductPlan;
     brandVoice: string;
+    selectedPersona: UserPersonaId | undefined;
     competitiveAnalysis: CompetitiveAnalysis | null;
     customerPersona: CustomerPersona | null;
     logoImageUrl: string | null;
@@ -111,6 +113,7 @@ const Step4Launchpad: React.FC<Step4LaunchpadProps> = (props) => {
     const {
         productPlan,
         brandVoice,
+        selectedPersona,
         competitiveAnalysis,
         customerPersona,
         logoImageUrl,
@@ -141,6 +144,12 @@ const Step4Launchpad: React.FC<Step4LaunchpadProps> = (props) => {
     const [isRegeneratingFinancials, setIsRegeneratingFinancials] = useState(false);
 
     const isDataMissing = !marketingPlan || !financials || nextSteps.length === 0 || !adCampaigns || !influencerMarketingPlan || !packagingExperience || !legalChecklist;
+
+    const isCardHighlighted = (cardName: string) => {
+        if (!selectedPersona) return false;
+        const persona = getPersonaById(selectedPersona);
+        return persona?.workflow.includes(cardName);
+    };
 
     useEffect(() => {
         const fetchLaunchpadData = async () => {
@@ -191,7 +200,7 @@ const Step4Launchpad: React.FC<Step4LaunchpadProps> = (props) => {
             if (productPlan && customerPersona && !marketingPlan) {
                  setIsLoading(true);
                  try {
-                     const marketing = await generateMarketingPlan(productPlan, brandVoice, customerPersona);
+                     const marketing = await generateMarketingPlan(productPlan, brandVoice, customerPersona, selectedPersona);
                      setMarketingPlan(marketing);
                      onPlanModified();
                  } catch(e) {
@@ -277,53 +286,101 @@ const Step4Launchpad: React.FC<Step4LaunchpadProps> = (props) => {
     return (
         <div className="w-full max-w-4xl space-y-8">
             {marketingPlan && (
-                <MarketingKickstartCard
-                    marketingPlan={marketingPlan}
+                <div className={isCardHighlighted('MarketingKickstartCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                    <MarketingKickstartCard
+                        marketingPlan={marketingPlan}
+                        productPlan={productPlan}
+                        brandVoice={brandVoice}
+                        onUpdate={(newPlan) => {
+                            setMarketingPlan(newPlan);
+                            onPlanModified();
+                        }}
+                    />
+                </div>
+            )}
+            {financials && (
+                <div className={isCardHighlighted('FinancialProjectionsCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                    <FinancialProjectionsCard financials={financials} onFinancialsChange={(f) => { setFinancials(f); onPlanModified(); }} currency={productPlan.currency} onScenarioChange={handleScenarioChange} isRegenerating={isRegeneratingFinancials} />
+                </div>
+            )}
+            {customerPersona && (
+                <div className={isCardHighlighted('SeoStrategyCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                    <SeoStrategyCard productPlan={productPlan} customerPersona={customerPersona} brandVoice={brandVoice} seoStrategy={seoStrategy} setSeoStrategy={setSeoStrategy} onPlanModified={onPlanModified} />
+                </div>
+            )}
+            {adCampaigns && (
+                <div className={isCardHighlighted('AdCampaignGeneratorCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                    <AdCampaignGeneratorCard campaigns={adCampaigns} />
+                </div>
+            )}
+            {influencerMarketingPlan && (
+                <div className={isCardHighlighted('InfluencerMarketingCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                    <InfluencerMarketingCard plan={influencerMarketingPlan} />
+                </div>
+            )}
+            <div className={isCardHighlighted('SocialMediaCalendarCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                <SocialMediaCalendarCard productPlan={productPlan} customerPersona={customerPersona} brandVoice={brandVoice} calendar={socialMediaCalendar} setCalendar={setSocialMediaCalendar} onPlanModified={onPlanModified} />
+            </div>
+            <div className={isCardHighlighted('EmailFunnelCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                <EmailFunnelCard productPlan={productPlan} customerPersona={customerPersona} brandVoice={brandVoice} funnel={emailFunnel} setFunnel={setEmailFunnel} onPlanModified={onPlanModified} />
+            </div>
+            <div className={isCardHighlighted('ABTestingCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                <ABTestingCard productPlan={productPlan} customerPersona={customerPersona} testPlan={abTestPlan} setTestPlan={setAbTestPlan} onPlanModified={onPlanModified} />
+            </div>
+            <div className={isCardHighlighted('ProductPhotographyCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                <ProductPhotographyCard productPlan={productPlan} brandVoice={brandVoice} plan={photographyPlan} setPlan={setPhotographyPlan} onPlanModified={onPlanModified} />
+            </div>
+            <div className={isCardHighlighted('PressReleaseCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                <PressReleaseCard productPlan={productPlan} brandVoice={brandVoice} release={pressRelease} setRelease={setPressRelease} onPlanModified={onPlanModified} />
+            </div>
+            <div className={isCardHighlighted('CustomerSupportCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                <CustomerSupportCard 
                     productPlan={productPlan}
                     brandVoice={brandVoice}
-                    onUpdate={(newPlan) => {
-                        setMarketingPlan(newPlan);
-                        onPlanModified();
-                    }}
+                    playbook={customerSupportPlaybook}
+                    setPlaybook={setCustomerSupportPlaybook}
+                    onPlanModified={onPlanModified}
                 />
+            </div>
+            {packagingExperience && (
+                <div className={isCardHighlighted('PackagingExperienceCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                    <PackagingExperienceCard experience={packagingExperience} />
+                </div>
             )}
-            {financials && <FinancialProjectionsCard financials={financials} onFinancialsChange={(f) => { setFinancials(f); onPlanModified(); }} currency={productPlan.currency} onScenarioChange={handleScenarioChange} isRegenerating={isRegeneratingFinancials} />}
-            {customerPersona && <SeoStrategyCard productPlan={productPlan} customerPersona={customerPersona} brandVoice={brandVoice} seoStrategy={seoStrategy} setSeoStrategy={setSeoStrategy} onPlanModified={onPlanModified} />}
-            {adCampaigns && <AdCampaignGeneratorCard campaigns={adCampaigns} />}
-            {influencerMarketingPlan && <InfluencerMarketingCard plan={influencerMarketingPlan} />}
-            <SocialMediaCalendarCard productPlan={productPlan} customerPersona={customerPersona} brandVoice={brandVoice} calendar={socialMediaCalendar} setCalendar={setSocialMediaCalendar} onPlanModified={onPlanModified} />
-            <EmailFunnelCard productPlan={productPlan} customerPersona={customerPersona} brandVoice={brandVoice} funnel={emailFunnel} setFunnel={setEmailFunnel} onPlanModified={onPlanModified} />
-            <ABTestingCard productPlan={productPlan} customerPersona={customerPersona} testPlan={abTestPlan} setTestPlan={setAbTestPlan} onPlanModified={onPlanModified} />
-            <ProductPhotographyCard productPlan={productPlan} brandVoice={brandVoice} plan={photographyPlan} setPlan={setPhotographyPlan} onPlanModified={onPlanModified} />
-            <PressReleaseCard productPlan={productPlan} brandVoice={brandVoice} release={pressRelease} setRelease={setPressRelease} onPlanModified={onPlanModified} />
-            <CustomerSupportCard 
-                productPlan={productPlan}
-                brandVoice={brandVoice}
-                playbook={customerSupportPlaybook}
-                setPlaybook={setCustomerSupportPlaybook}
-                onPlanModified={onPlanModified}
-            />
-            {packagingExperience && <PackagingExperienceCard experience={packagingExperience} />}
-            <StorefrontMockupCard onGenerate={handleGenerateMockup} isGenerating={isGeneratingMockup} mockupUrl={storefrontMockupUrl} />
-            <SupplierTrackerCard 
-                quotes={supplierQuotes} 
-                onQuotesChange={handleSupplierQuotesChange} 
-                currency={productPlan.currency}
-                productPlan={productPlan}
-                customerPersona={customerPersona}
-                suggestions={supplierSuggestions}
-                onSuggestionsChange={handleSupplierSuggestionsChange}
-            />
-            <ShopifyIntegrationCard 
-                productPlan={productPlan} 
-                logoImageUrl={logoImageUrl}
-                storefrontMockupUrl={storefrontMockupUrl}
-                integrationConfig={shopifyIntegration}
-                setIntegrationConfig={setShopifyIntegration}
-                onPlanModified={onPlanModified}
-            />
-            {legalChecklist && <LegalChecklistCard checklist={legalChecklist} />}
-            {nextSteps.length > 0 && <NextStepsCard items={nextSteps} onToggle={handleToggleNextStep} onAddTask={handleAddTask} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />}
+            <div className={isCardHighlighted('StorefrontMockupCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                <StorefrontMockupCard onGenerate={handleGenerateMockup} isGenerating={isGeneratingMockup} mockupUrl={storefrontMockupUrl} />
+            </div>
+            <div className={isCardHighlighted('SupplierTrackerCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                <SupplierTrackerCard 
+                    quotes={supplierQuotes} 
+                    onQuotesChange={handleSupplierQuotesChange} 
+                    currency={productPlan.currency}
+                    productPlan={productPlan}
+                    customerPersona={customerPersona}
+                    suggestions={supplierSuggestions}
+                    onSuggestionsChange={handleSupplierSuggestionsChange}
+                />
+            </div>
+            <div className={isCardHighlighted('ShopifyIntegrationCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                <ShopifyIntegrationCard 
+                    productPlan={productPlan} 
+                    logoImageUrl={logoImageUrl}
+                    storefrontMockupUrl={storefrontMockupUrl}
+                    integrationConfig={shopifyIntegration}
+                    setIntegrationConfig={setShopifyIntegration}
+                    onPlanModified={onPlanModified}
+                />
+            </div>
+            {legalChecklist && (
+                <div className={isCardHighlighted('LegalChecklistCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                    <LegalChecklistCard checklist={legalChecklist} />
+                </div>
+            )}
+            {nextSteps.length > 0 && (
+                <div className={isCardHighlighted('NextStepsCard') ? 'ring-2 ring-indigo-500 rounded-xl p-1 shadow-lg' : ''}>
+                    <NextStepsCard items={nextSteps} onToggle={handleToggleNextStep} onAddTask={handleAddTask} onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
+                </div>
+            )}
             <ChatCard productPlan={productPlan} brandVoice={brandVoice} history={chatHistory} onHistoryChange={(h) => { setChatHistory(h); onPlanModified(); }} />
             <ExportControls 
                 productPlan={productPlan} 

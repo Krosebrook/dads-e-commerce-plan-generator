@@ -10,6 +10,7 @@ import MyVenturesDashboard from '../components/MyVenturesDashboard';
 import ProductScout from '../components/ProductScout';
 import AuthModal from '../components/AuthModal';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
+import PersonaGuide from '../components/PersonaGuide';
 import { generateProductPlan, generateSmartGoals } from '../services/geminiService';
 import { trackPhaseCompletion } from './lib/blink';
 import { supabase } from './lib/supabase';
@@ -43,6 +44,7 @@ import {
     ABTestPlan,
     EmailFunnel,
     PressRelease,
+    UserPersonaId
 } from '../types';
 
 type Theme = 'light' | 'dark';
@@ -51,6 +53,7 @@ const App: React.FC = () => {
     const [currentStep, setCurrentStep] = useState(1);
     const [productIdea, setProductIdea] = useState('');
     const [brandVoice, setBrandVoice] = useState('Witty & Humorous Dad');
+    const [selectedPersona, setSelectedPersona] = useState<UserPersonaId | undefined>(undefined);
     const [isLoading, setIsLoading] = useState(false);
     const [inputError, setInputError] = useState<string | null>(null);
     const [theme, setTheme] = useState<Theme>('light');
@@ -241,6 +244,7 @@ const App: React.FC = () => {
         setCurrentStep(1);
         setProductIdea('');
         setBrandVoice('Witty & Humorous Dad');
+        setSelectedPersona(undefined);
         setInputError(null);
         setVentureId(null);
         setVentureName('');
@@ -297,7 +301,7 @@ const App: React.FC = () => {
         setInputError(null);
 
         try {
-            const goals = await generateSmartGoals(productIdea, brandVoice);
+            const goals = await generateSmartGoals(productIdea, brandVoice, selectedPersona);
             setSmartGoals(goals);
             trackPhaseCompletion('smart_goals_generated', { productIdea, brandVoice });
         } catch (err) {
@@ -312,7 +316,7 @@ const App: React.FC = () => {
         setIsLoading(true);
         try {
             // Phase 2: Generate product plan only
-            const newPlan = await generateProductPlan(productIdea, brandVoice, []);
+            const newPlan = await generateProductPlan(productIdea, brandVoice, [], selectedPersona);
             setPlan(newPlan);
             
             const newVentureId = `venture_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -353,7 +357,7 @@ const App: React.FC = () => {
         if (!ventureId || !plan) return;
 
         const currentAppData: AppData = {
-            productIdea, brandVoice, smartGoals, plan, logoImageUrl, brandKit,
+            productIdea, brandVoice, selectedPersona, smartGoals, plan, logoImageUrl, brandKit,
             analysis, swotAnalysis, customerPersona, personaAvatarUrl, marketingPlan,
             financials, nextSteps, chatHistory, storefrontMockupUrl, seoStrategy,
             shopifyIntegration, supplierQuotes, supplierSuggestions, priceHistory, adCampaigns: adCampaigns ?? undefined,
@@ -446,6 +450,7 @@ const App: React.FC = () => {
             setVentureName(ventureToLoad.name);
             setProductIdea(data.productIdea);
             setBrandVoice(data.brandVoice);
+            setSelectedPersona(data.selectedPersona);
             setSmartGoals(data.smartGoals);
 
             const loadedPlan = data.plan;
@@ -626,6 +631,7 @@ const App: React.FC = () => {
                 <ProgressBar currentStep={currentStep} steps={steps} />
                 
                 <div key={currentStep} className="w-full animate-fade-in-up">
+                    {selectedPersona && <PersonaGuide personaId={selectedPersona} currentStep={currentStep} />}
                     {currentStep === 1 && (
                         <Step1Idea
                             productIdea={productIdea}
@@ -636,6 +642,8 @@ const App: React.FC = () => {
                             handleExampleClick={handleExampleClick}
                             brandVoice={brandVoice}
                             setBrandVoice={setBrandVoice}
+                            selectedPersona={selectedPersona}
+                            setSelectedPersona={setSelectedPersona}
                             onShowScout={() => setShowScout(true)}
                             smartGoals={smartGoals}
                             onProceedToBlueprint={handleProceedToBlueprint}
@@ -646,6 +654,7 @@ const App: React.FC = () => {
                             plan={plan}
                             productIdea={productIdea}
                             brandVoice={brandVoice}
+                            selectedPersona={selectedPersona}
                             onPlanChange={updatePlan}
                             logoImageUrl={logoImageUrl}
                             setLogoImageUrl={(url) => { setLogoImageUrl(url); onPlanModified(); }}
@@ -662,6 +671,7 @@ const App: React.FC = () => {
                             productPlan={plan}
                             productIdea={productIdea}
                             brandVoice={brandVoice}
+                            selectedPersona={selectedPersona}
                             analysis={analysis}
                             setAnalysis={(a) => { setAnalysis(a); onPlanModified(); }}
                             swotAnalysis={swotAnalysis}
@@ -678,6 +688,7 @@ const App: React.FC = () => {
                         <Step4Launchpad
                             productPlan={plan}
                             brandVoice={brandVoice}
+                            selectedPersona={selectedPersona}
                             competitiveAnalysis={analysis}
                             customerPersona={customerPersona}
                             logoImageUrl={logoImageUrl}

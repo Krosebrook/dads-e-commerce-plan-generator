@@ -1,7 +1,7 @@
 
 
 import React, { useState, useCallback } from 'react';
-import { ProductPlan, ProductVariant, RegenerateableSection, BrandIdentityKit } from '../../types';
+import { ProductPlan, ProductVariant, RegenerateableSection, BrandIdentityKit, UserPersonaId } from '../../types';
 import { generateLogo, regeneratePlanSection, generateProductPlan, generateBrandIdentity } from '../../services/geminiService';
 import ProductPlanCard from '../ProductPlanCard';
 import BrandIdentityCard from '../BrandIdentityCard';
@@ -12,6 +12,7 @@ interface Step2BlueprintProps {
     plan: ProductPlan;
     productIdea: string;
     brandVoice: string;
+    selectedPersona: UserPersonaId | undefined;
     onPlanChange: (updatedPlan: ProductPlan) => void;
     logoImageUrl: string | null;
     setLogoImageUrl: (url: string | null) => void;
@@ -27,6 +28,7 @@ const Step2Blueprint: React.FC<Step2BlueprintProps> = ({
     plan,
     productIdea,
     brandVoice,
+    selectedPersona,
     onPlanChange,
     logoImageUrl,
     setLogoImageUrl,
@@ -74,7 +76,7 @@ const Step2Blueprint: React.FC<Step2BlueprintProps> = ({
         setIsGeneratingKit(true);
         setBrandKitError(null);
         try {
-            const kit = await generateBrandIdentity(plan, brandVoice);
+            const kit = await generateBrandIdentity(plan, brandVoice, selectedPersona);
             setBrandKit(kit);
             trackPhaseCompletion('brand_kit_generated', { productTitle: plan.productTitle });
         } catch (err) {
@@ -83,7 +85,7 @@ const Step2Blueprint: React.FC<Step2BlueprintProps> = ({
         } finally {
             setIsGeneratingKit(false);
         }
-    }, [plan, isGeneratingKit, brandVoice, setBrandKit]);
+    }, [plan, isGeneratingKit, brandVoice, setBrandKit, selectedPersona]);
 
     const handleRegenerateSection = useCallback(async (section: RegenerateableSection) => {
         if (!plan) return;
@@ -115,7 +117,7 @@ const Step2Blueprint: React.FC<Step2BlueprintProps> = ({
     setLogoError(null);
 
     try {
-      const { plan: newPlan } = await generateProductPlan(productIdea, brandVoice, updatedVariants);
+      const newPlan = await generateProductPlan(productIdea, brandVoice, updatedVariants, selectedPersona);
       onPlanChange(newPlan);
     } catch (err) {
       console.error(err);
@@ -123,7 +125,7 @@ const Step2Blueprint: React.FC<Step2BlueprintProps> = ({
     } finally {
       setIsUpdating(false);
     }
-  }, [productIdea, onPlanChange, brandVoice]);
+  }, [productIdea, onPlanChange, brandVoice, selectedPersona]);
 
 
     return (

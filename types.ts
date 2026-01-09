@@ -302,6 +302,7 @@ export interface PressRelease {
 export interface AppData {
     productIdea: string;
     brandVoice: string;
+    selectedPersona?: UserPersonaId;
     smartGoals: SMARTGoals | null;
     plan: ProductPlan;
     logoImageUrl: string | null;
@@ -382,4 +383,30 @@ export interface SupplierQuote {
 export interface PriceHistoryPoint {
     date: string; // ISO date string
     priceCents: number;
+}
+
+export type UserPersonaId = 
+  | 'side_hustle_dad'
+  | 'dropshipping_newbie'
+  | 'artisan_maker'
+  | 'amazon_fba'
+  | 'niche_passionate'
+  | 'financial_planner'
+  | 'marketing_strategist'
+  | 'solopreneur_mom'
+  | 'legacy_retiree'
+  | 'serial_entrepreneur'
+  | 'supply_chain_manager'
+  | 'branding_visualist'
+  | 'tech_savvy_genz'
+  | 'brick_and_mortar'
+  | 'influencer_merch';
+
+export interface UserPersona {
+  id: UserPersonaId;
+  name: string;
+  description: string;
+  objective: string;
+  workflow: string[]; // List of card IDs or Step names to prioritize
+  recommendedVoice: string;
 }

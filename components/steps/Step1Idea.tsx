@@ -1,8 +1,10 @@
 import React from 'react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { SMARTGoals } from '../../types';
+import { SMARTGoals, UserPersonaId } from '../../types';
 import SmartGoalsCard from '../SmartGoalsCard';
+import { USER_PERSONAS } from '@/src/lib/personas';
+import { Card } from '../ui/Card';
 
 interface Step1IdeaProps {
     productIdea: string;
@@ -13,6 +15,8 @@ interface Step1IdeaProps {
     handleExampleClick: (prompt: string) => void;
     brandVoice: string;
     setBrandVoice: (voice: string) => void;
+    selectedPersona: UserPersonaId | undefined;
+    setSelectedPersona: (persona: UserPersonaId) => void;
     onShowScout: () => void;
     smartGoals: SMARTGoals | null;
     onProceedToBlueprint: () => void;
@@ -27,6 +31,8 @@ const Step1Idea: React.FC<Step1IdeaProps> = ({
     handleExampleClick,
     brandVoice,
     setBrandVoice,
+    selectedPersona,
+    setSelectedPersona,
     onShowScout,
     smartGoals,
     onProceedToBlueprint,
@@ -52,6 +58,35 @@ const Step1Idea: React.FC<Step1IdeaProps> = ({
                         aria-describedby="input-error"
                     />
                     {inputError && <p id="input-error" className="text-red-500 text-sm text-left mt-1">{inputError}</p>}
+                </div>
+
+                <div>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Choose Your Entrepreneur Persona</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
+                        {USER_PERSONAS.map((persona) => (
+                            <button
+                                key={persona.id}
+                                type="button"
+                                onClick={() => {
+                                    setSelectedPersona(persona.id);
+                                    setBrandVoice(persona.recommendedVoice);
+                                }}
+                                disabled={isLoading}
+                                className={`p-3 text-xs rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                                    selectedPersona === persona.id
+                                    ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-400'
+                                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
+                                }`}
+                            >
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg ${
+                                    selectedPersona === persona.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                }`}>
+                                    {persona.name.charAt(0)}
+                                </div>
+                                <span className="font-bold text-center leading-tight dark:text-slate-200">{persona.name}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 <div>
